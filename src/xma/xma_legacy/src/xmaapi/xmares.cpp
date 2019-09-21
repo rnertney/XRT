@@ -533,7 +533,7 @@ static XmaResConfig *xma_shm_open(char *shm_filename, XmaSystemCfg *config)
     struct stat shm_file_stat;
     int i, ret, fd, max_retry;
     bool shm_initalized;
-    int max_wait = xma_cfg_dev_cnt_get() * 10; /* 10s per device programmed */
+    int max_wait = xma_cfg_dev_cnt_get() * 100; /* 10s per device programmed */
     XmaResConfig *shm_map;
 
     pthread_mutexattr_t proc_shared_lock;
