@@ -125,7 +125,7 @@ int hal_probe(XmaHwCfg *hwcfg)
     int32_t      rc = 0;
 
     device_count = xclProbe();
-	if (device_count == 0)
+    if (device_count == 0) 
     {
         xma_logmsg(XMA_ERROR_LOG, XMAAPI_MOD, "ERROR: No Xilinx device found\n");
         return XMA_ERROR;
@@ -191,7 +191,7 @@ bool hal_configure(XmaHwCfg *hwcfg, XmaSystemCfg *systemcfg, bool hw_configured)
 {
     std::string   xclbinpath = systemcfg->xclbinpath;
     //allocating larger than required to avoid stack smashing and mem corruption
-    XmaXclbinInfo* pInfo = (XmaXclbinInfo*)calloc(2,sizeof(XmaXclbinInfo));
+    XmaXclbinInfo* pInfo = (XmaXclbinInfo*)calloc(2,sizeof(*pInfo));
 
     /* Download the requested image to the associated device */
     for (int32_t i = 0; i < systemcfg->num_images; i++)
@@ -238,7 +238,14 @@ bool hal_configure(XmaHwCfg *hwcfg, XmaSystemCfg *systemcfg, bool hw_configured)
                        pInfo->ip_layout[t].base_addr;
                     uint64_t ip_ddr_map = pInfo->ip_ddr_mapping[t];
                     int num_ddr_used = 0;
-                    int ddr_banks[MAX_DDR_MAP] = {-1};
+                    /*
+                     * MPSoC based accelerator platforms have IP/Kernels
+                     * which are not visible to x86/Host and not listed in
+                     * the xclbins. Let the default be ddr_bank 0, in the
+                     * event xclbins contain the kernel to ddr_bank mapping, the
+                     * default value will be overwrriten
+                     */
+                    int ddr_banks[MAX_DDR_MAP] = {0};
                     xma_xclbin_map2ddr(ip_ddr_map, ddr_banks, &num_ddr_used);
                     for(int d=0; d < num_ddr_used; d++)
                     {
@@ -272,25 +279,34 @@ bool hal_configure(XmaHwCfg *hwcfg, XmaSystemCfg *systemcfg, bool hw_configured)
 	    }
 
             //Setup execbo for use with kernel commands
-            for (int32_t k = 0, t = 0;
+	        for (int32_t k = 0, t = 0, s = 0;
                 t < MAX_KERNEL_CONFIGS &&
                 k < systemcfg->imagecfg[i].num_kernelcfg_entries; k++)
             {
                 for (int32_t x = 0;
+                     t < MAX_KERNEL_CONFIGS &&
                      x < systemcfg->imagecfg[i].kernelcfg[k].instances;
                      x++, t++)
                 {
                     bool found = false;
-                    uint32_t cu_bit_mask = 1;
-                    for (uint32_t i_ips = 0; i_ips < pInfo->num_ips; i_ips++)
+                    uint32_t flags = 0;
+                    uint32_t cu = 0;
+                    if (strncmp (systemcfg->imagecfg[i].kernelcfg[k].name, "skrnl", 5) == 0)
                     {
-                        if (pInfo->ip_layout[i_ips].base_addr ==
-                            hwcfg->devices[dev_id].kernels[t].base_address)
+                        cu += pInfo->num_ips - 1 + s++; // (# of kernels) - (1 listed soft kernel in kernels) + (current soft kernel)
+                        found = true;
+                        flags = XMA_EXECBO_FLAGS_SOFT_KERNEL;
+                    } else {
+                        for (uint32_t i_ips = 0; i_ips < pInfo->num_ips; i_ips++)
                         {
-                            found = true;
-                        } else if (pInfo->ip_layout[i_ips].base_addr <
-                            hwcfg->devices[dev_id].kernels[t].base_address) {
-                            cu_bit_mask = cu_bit_mask << 1;
+                            if (pInfo->ip_layout[i_ips].base_addr ==
+                                hwcfg->devices[dev_id].kernels[t].base_address)
+                            {
+                                found = true;
+                            } else if (pInfo->ip_layout[i_ips].base_addr <
+                                hwcfg->devices[dev_id].kernels[t].base_address) {
+                                cu++;
+                            }
                         }
                     }
                     if (!found)
@@ -300,7 +316,7 @@ bool hal_configure(XmaHwCfg *hwcfg, XmaSystemCfg *systemcfg, bool hw_configured)
                         xma_logmsg(XMA_ERROR_LOG, XMAAPI_MOD, "CU not found. Couldn't create cu_cmd execbo\n");
                         return false;
                     }
-                    if (cu_bit_mask == 0)
+                    if (cu >= MAX_KERNEL_CONFIGS)
                     {
                         free(buffer);
                         free(pInfo);
@@ -330,12 +346,16 @@ bool hal_configure(XmaHwCfg *hwcfg, XmaSystemCfg *systemcfg, bool hw_configured)
                             bo_handle;
                         hwcfg->devices[dev_id].kernels[t].kernel_execbo_data[i_execbo] =
                             bo_data;
-                        hwcfg->devices[dev_id].kernels[t].kernel_execbo_inuse[i_execbo] =
-                            false;
+                        hwcfg->devices[dev_id].kernels[t].kernel_execbo_flags[i_execbo] =
+                            flags;
                         ert_start_kernel_cmd* cu_start_cmd = (ert_start_kernel_cmd*) bo_data;
                         cu_start_cmd->state = ERT_CMD_STATE_NEW;
                         cu_start_cmd->opcode = ERT_START_CU;
-                        cu_start_cmd->cu_mask = cu_bit_mask;
+                        cu_start_cmd->extra_cu_masks = cu / 32;
+                        if (cu < 32)
+                            cu_start_cmd->cu_mask = 1 << cu;
+                        else
+                            cu_start_cmd->data[cu_start_cmd->extra_cu_masks - 1] = 1 << (cu % 32);
                     }
                 }
             }

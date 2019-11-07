@@ -187,7 +187,7 @@ int32_t xma_plg_execbo_avail_get(XmaHwSession s_handle)
     {
         ert_start_kernel_cmd *cu_cmd = 
             (ert_start_kernel_cmd*)s_handle.kernel_info->kernel_execbo_data[i];
-        if (s_handle.kernel_info->kernel_execbo_inuse[i])
+        if (s_handle.kernel_info->kernel_execbo_flags[i] & XMA_EXECBO_FLAGS_IN_USE)
         {
             switch(cu_cmd->state)
             {
@@ -216,7 +216,7 @@ int32_t xma_plg_execbo_avail_get(XmaHwSession s_handle)
     }
     if (found)
     {
-        s_handle.kernel_info->kernel_execbo_inuse[i] = true;
+        s_handle.kernel_info->kernel_execbo_flags[i] |= XMA_EXECBO_FLAGS_IN_USE;
         rc = i;
     }
 
@@ -241,13 +241,13 @@ xma_plg_schedule_work_item(XmaHwSession s_handle)
         ert_start_kernel_cmd *cu_cmd = 
             (ert_start_kernel_cmd*)s_handle.kernel_info->kernel_execbo_data[bo_idx];
         cu_cmd->state = ERT_CMD_STATE_NEW;
-        cu_cmd->opcode = ERT_START_CU;
+        cu_cmd->opcode = (s_handle.kernel_info->kernel_execbo_flags[bo_idx] & XMA_EXECBO_FLAGS_SOFT_KERNEL) ? ERT_SK_START : ERT_START_CU;
 
         // Copy reg_map into execBO buffer 
-        memcpy(cu_cmd->data, src, size);
+        memcpy(&cu_cmd->data[cu_cmd->extra_cu_masks], src, size);
 
         // Set count to size in 32-bit words + 1 
-        cu_cmd->count = (size >> 2) + 1;
+        cu_cmd->count = (size >> 2) + 1 + cu_cmd->extra_cu_masks;
      
         if (xclExecBuf(s_handle.dev_handle, 
                        s_handle.kernel_info->kernel_execbo_handle[bo_idx]) != 0)
@@ -269,10 +269,13 @@ int32_t xma_plg_is_work_item_done(XmaHwSession s_handle, int32_t timeout_ms)
     // Keep track of the number of kernel completions
     while (count == 0)
     {
+        int ret = 0;
+        int retry_count = 50;
+retry:
         // Look for inuse commands that have completed and increment the count
         for (int32_t i = 0; i < MAX_EXECBO_POOL_SIZE; i++)
         {
-            if (s_handle.kernel_info->kernel_execbo_inuse[i])
+            if (s_handle.kernel_info->kernel_execbo_flags[i] & XMA_EXECBO_FLAGS_IN_USE)
             {
                 ert_start_kernel_cmd *cu_cmd = 
                     (ert_start_kernel_cmd*)s_handle.kernel_info->kernel_execbo_data[i];
@@ -280,7 +283,7 @@ int32_t xma_plg_is_work_item_done(XmaHwSession s_handle, int32_t timeout_ms)
                 {
                     // Increment completed kernel count and make BO buffer available
                     count++;
-                    s_handle.kernel_info->kernel_execbo_inuse[i] = false;
+                    s_handle.kernel_info->kernel_execbo_flags[i] &= ~XMA_EXECBO_FLAGS_IN_USE;
                 } 
             }
         }
@@ -289,8 +292,16 @@ int32_t xma_plg_is_work_item_done(XmaHwSession s_handle, int32_t timeout_ms)
             break;
 
         // Wait for a notification
-        if (xclExecWait(s_handle.dev_handle, timeout_ms) <= 0)
+        ret = xclExecWait(s_handle.dev_handle, timeout_ms);
+        if (ret < 0)
             break;
+        else if (ret == 0) {
+            if (retry_count) {
+                retry_count--;
+                goto retry;
+            }
+            break;
+        }
     }
     current_count += count;
     if (current_count)

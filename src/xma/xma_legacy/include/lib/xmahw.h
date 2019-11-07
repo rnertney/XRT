@@ -38,6 +38,9 @@ extern "C" {
  * @{
  */
 
+#define XMA_EXECBO_FLAGS_IN_USE        (1 << 0)
+#define XMA_EXECBO_FLAGS_SOFT_KERNEL   (1 << 1)
+
 typedef struct XmaHwKernel
 {
     uint8_t     name[MAX_KERNEL_NAME];
@@ -51,7 +54,7 @@ typedef struct XmaHwKernel
     void*       kernel_cmd_completion_queue;
     uint32_t    kernel_execbo_handle[MAX_EXECBO_POOL_SIZE];
     char*       kernel_execbo_data[MAX_EXECBO_POOL_SIZE];
-    bool        kernel_execbo_inuse[MAX_EXECBO_POOL_SIZE];
+    uint32_t    kernel_execbo_flags[MAX_EXECBO_POOL_SIZE];
     uint32_t    reserved[16];
 } XmaHwKernel;
 
