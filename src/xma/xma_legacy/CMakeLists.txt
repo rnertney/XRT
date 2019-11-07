@@ -9,7 +9,7 @@ option(XMA_VERBOSE "Enable xma verbosity" OFF)
 if (XMA_VERBOSE)
   add_compile_options("-DXMA_VERBOSE")
 endif()
-
+add_compile_options("-DMULTISCALER_HACK")
 add_compile_options("-fPIC")
 add_compile_options("-Wall" "-Werror")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
