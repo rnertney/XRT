@@ -230,7 +230,7 @@ xma_plg_schedule_work_item(XmaHwSession s_handle)
     size_t  size = s_handle.context->max_offset;
     int32_t bo_idx;
     int32_t rc = XMA_SUCCESS;
-    
+
     // Find an available execBO buffer
     bo_idx = xma_plg_execbo_avail_get(s_handle);
     if (bo_idx == -1)
@@ -265,13 +265,13 @@ int32_t xma_plg_is_work_item_done(XmaHwSession s_handle, int32_t timeout_ms)
 {
     int32_t current_count = s_handle.kernel_info->kernel_complete_count;
     int32_t count = 0;
+    int32_t xma_ret = XMA_SUCCESS;
 
     // Keep track of the number of kernel completions
     while (count == 0)
     {
         int ret = 0;
-        int retry_count = 50;
-retry:
+        
         // Look for inuse commands that have completed and increment the count
         for (int32_t i = 0; i < MAX_EXECBO_POOL_SIZE; i++)
         {
@@ -293,13 +293,8 @@ retry:
 
         // Wait for a notification
         ret = xclExecWait(s_handle.dev_handle, timeout_ms);
-        if (ret < 0)
-            break;
-        else if (ret == 0) {
-            if (retry_count) {
-                retry_count--;
-                goto retry;
-            }
+        if (ret <= 0) {
+            xma_ret = ret < 0 ? XMA_ERROR: XMA_TRY_AGAIN;
             break;
         }
     }
@@ -312,12 +307,13 @@ retry:
     }
     else
     {
-        xma_logmsg(XMA_ERROR_LOG, XMAPLUGIN_MOD,
+        if (xma_ret == XMA_ERROR)
+            xma_logmsg(XMA_ERROR_LOG, XMAPLUGIN_MOD,
                     "Could not find completed work item\n");
-        return XMA_ERROR;
+        return xma_ret;
     }
 }
-    
+
 int32_t
 xma_plg_register_write(XmaHwSession  s_handle,
                        void         *src,
