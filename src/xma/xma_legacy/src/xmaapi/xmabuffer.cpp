@@ -150,7 +150,7 @@ xma_side_data_alloc(void                      *side_data,
     XmaFrameSideData *sd;
     void *sdata = NULL;
     xma_logmsg(XMA_DEBUG_LOG, XMA_BUFFER_MOD,
-               "%s() frame %p side_data %p type %d size %zu use_buffer=%d\n",
+               "%s() side_data %p type %d size %zu use_buffer=%d\n",
                __func__, side_data, sd_type, size, use_buffer);
     sd = (XmaFrameSideData*)calloc(1, sizeof(XmaFrameSideData));
     if (!sd) {
@@ -299,7 +299,7 @@ xma_frame_remove_side_data(XmaFrame          *frame,
     if (sd != side_data) {
         xma_logmsg(XMA_INFO_LOG, XMA_BUFFER_MOD,
                    "%s() Frame %p has no side data buffer %p\n",
-                   __func__, frame, side_data);
+                   __func__, frame, in_sd);
         return XMA_ERROR_INVALID;
     }
 
