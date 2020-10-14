@@ -304,7 +304,7 @@ install()
         yum install -y "${RH_LIST[@]}"
 	if [ $ARCH == "ppc64le" ]; then
             yum install -y devtoolset-7
-	elif [ $VERSION -lt "8" ]; then
+	elif [ $VERSION -lt "7" ]; then
             yum install -y devtoolset-6
 	fi
     fi

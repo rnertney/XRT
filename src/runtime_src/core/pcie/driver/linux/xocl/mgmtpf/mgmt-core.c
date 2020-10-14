@@ -430,10 +430,10 @@ static void check_sensor(struct xclmgmt_dev *lro)
 			XOCL_SYSMON_PROP_VCC_BRAM, &s->vol_0v85);
 	}
 
-	check_temp_within_range(lro, s->fpga_temp);
-	check_volt_within_range(lro, s->vccint_vol);
-	check_volt_within_range(lro, s->vol_1v8);
-	check_volt_within_range(lro, s->vol_0v85);
+	//check_temp_within_range(lro, s->fpga_temp);
+	//check_volt_within_range(lro, s->vccint_vol);
+	//check_volt_within_range(lro, s->vol_1v8);
+	//check_volt_within_range(lro, s->vol_0v85);
 
 	vfree(s);
 }

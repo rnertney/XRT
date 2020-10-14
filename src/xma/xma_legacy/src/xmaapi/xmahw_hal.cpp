@@ -170,7 +170,7 @@ bool hal_is_compatible(XmaHwCfg *hwcfg, XmaSystemCfg *systemcfg)
         xma_logmsg(XMA_INFO_LOG, XMAAPI_MOD, "Requested %d devices but only %d devices found\n",
                    num_devices_requested, hwcfg->num_devices);
         xma_logmsg(XMA_INFO_LOG, XMAAPI_MOD, "Max device id specified in YAML cfg %d\n", max_dev_id);
-        return false;
+      //  return false;
     }
 
     return true;
@@ -181,6 +181,12 @@ bool hal_configure(XmaHwCfg *hwcfg, XmaSystemCfg *systemcfg, bool hw_configured)
     std::string   xclbinpath = systemcfg->xclbinpath;
     //allocating larger than required to avoid stack smashing and mem corruption
     XmaXclbinInfo* pInfo = (XmaXclbinInfo*)calloc(2,sizeof(*pInfo));
+printf("XMA NUMIMAGES: %d\n", systemcfg->num_images);
+printf("XMA NUM_dev: %d\n", systemcfg->imagecfg[0].num_devices);
+
+systemcfg->imagecfg[0].num_devices = systemcfg->num_images = xclProbe();
+printf("NEW XMA NUMIMAGES: %d\n", systemcfg->num_images);
+
 
     /* Download the requested image to the associated device */
     for (int32_t i = 0; i < systemcfg->num_images; i++)
